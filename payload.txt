@@ -1,0 +1,27 @@
+#!/bin/bash
+# Title: DFIR Core Collector (robust launcher)
+# Description: Slower typing + uses Start-Process -Verb RunAs -Wait to run collector.ps1 from payloads\switch1
+# Target: Windows 10/11
+
+ATTACKMODE HID STORAGE
+LED SETUP
+
+# give host time to enumerate device and settle
+QUACK DELAY 3000
+
+# open Run dialog
+QUACK GUI r
+QUACK DELAY 800
+
+# Launch a PowerShell bootstrap that starts an elevated PowerShell and waits for it to finish.
+# NOTE: adjust fallback drive letter ('D:') if your Bunny commonly mounts to another letter.
+QUACK STRING powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Start-Process -FilePath 'powershell.exe' -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"D:\payloads\switch1\collector.ps1\"' -Verb RunAs -WindowStyle Hidden -Wait"
+QUACK ENTER
+
+# give time for UAC prompt to show and for user to click Yes (increase if UAC takes longer)
+QUACK DELAY 3000
+
+# extra wait to give collector time to kick off (the elevated process will run and the bootstrap will wait for it because of -Wait)
+QUACK DELAY 10000
+
+LED FINISH
