@@ -1,88 +1,140 @@
-# Bash Bunny DFIR Core Collector
+# Turning a Bash Bunny Into a DFIR Triage Kit
 
-Repurposing the Hak5 Bash Bunny into a **defensive DFIR triage tool** for Windows endpoints.  
-This project provides a lightweight, native-only PowerShell collector that generates a timestamped, integrity-protected snapshot of key forensic artifacts.
+The Hak5 **Bash Bunny** is usually thought of as an offensive tool — something red teamers use to inject payloads, exfiltrate data, or establish quick footholds. But with a bit of repurposing, you can flip it into a lightweight, plug-and-play **digital forensics & incident response (DFIR) collector**.
 
-> ⚠️ **Important:** Operational payloads (HID automation and launcher scripts) are dual-use and should **not** be shared publicly.  
-> This repo contains the documentation and sanitized examples. Full payloads should be kept in a **private repository**.
+I’ve been building exactly that: a **DFIR Core Collector** payload. Below I’ll break down what the script does, why we use a little marker file called `BUNNY.TAG`, and how you can set it all up yourself.
 
 ---
 
-## ✦ What It Does
+## What the Collector Script Captures
 
-When deployed, the Bash Bunny runs a PowerShell collector (`collector.ps1`) that:
+Once the Bunny is plugged into a Windows host (unlocked, UAC accepted), the PowerShell collector (`collector.ps1`) runs and drops its output into a timestamped folder on the Bunny drive:
 
-- Captures **volatile/runtime data** (processes, network connections, logged-on users, scheduled tasks).
-- Enumerates **system & drive info**.
-- Produces **listings** of user files (Documents, Downloads, Desktop, Pictures, Videos).
-- Lists **temp files**, **recycle bin items**, and **browser profile directories** (Chrome, Edge, Firefox).
-- (If run with UAC elevation) exports **event logs** (System, Security, Application) and **registry hives** (SAM, SYSTEM, SECURITY, SOFTWARE, NTUSER.DAT).
-- Records a **manifest** and **PowerShell transcript** for audit.
-- Hashes all outputs with **SHA256** for chain-of-custody.
-
----
-
-## ✦ Output Structure
-
-All results are saved to a timestamped folder on the Bunny drive:
-
-<BUNNY_ROOT>\DFIR_<HOSTNAME>_<YYYYMMDD_HHMMSS>\
+DFIR_<HOSTNAME>_<YYYYMMDD_HHMMSS>
 
 markdown
 Copy code
 
-Key files include:
-- `manifest.txt` — host, UTC time, admin status, script version  
-- `collection_transcript.txt` — PowerShell transcript  
-- `hashes.txt` — SHA256 for every collected file  
-- `processes.txt`, `netstat_full.txt`, `installed_software.txt`, etc.  
-- Browser artifact listings (`<user>_Chrome_artifacts_listing.txt`, etc.)  
-- Event logs & hives (if elevated): `System.evtx`, `Security.evtx`, `SAM`, `SOFTWARE`, etc.  
-- `admin_warning.txt` if run without elevation
+### Volatile & Runtime
+- `processes.txt` — running processes snapshot  
+- `net_connections.txt`, `tcp_connections.txt` — structured view of sockets  
+- `loggedon_users.txt` — interactive/remote sessions  
+- `tasks.txt` — persistence and automation tasks  
+
+### Network State
+- `netstat_full.txt` — all sockets + PIDs  
+- `udp_endpoints.txt` — UDP endpoints  
+- `listening_ports.txt` — listening ports  
+- `routing_table.txt` — routing table  
+- `arp_table.txt` — ARP cache  
+
+### System Information
+- `systeminfo.txt` — system summary  
+- `drives.txt` — drive information  
+
+### Temp & Swap (Listings Only)
+- `temp_listing.txt`, `windows_temp_listing.txt`, `<user>_temp_listing.txt`  
+- `swapfile_listing.txt` — metadata for pagefile/hiberfile  
+
+### Installed Software
+- `installed_software.txt` — 64-bit programs  
+- `installed_software_wow64.txt` — 32-bit programs  
+
+### User Data (Listings Only)
+Per-user listings:
+- `<user>_Documents_listing.txt`  
+- `<user>_Pictures_listing.txt`  
+- `<user>_Videos_listing.txt`  
+- `<user>_Desktop_listing.txt`  
+- `<user>_Downloads_listing.txt`  
+
+### Deleted Items
+- `recycle_bin_listing.txt` — Recycle Bin contents  
+
+### Browser Artifact Listings
+- `<user>_Chrome_artifacts_listing.txt`  
+- `<user>_Edge_artifacts_listing.txt`  
+- `<user>_Firefox_artifacts_listing.txt`  
+
+### Admin-Only (UAC required)
+- Event logs: `System.evtx`, `Security.evtx`, `Application.evtx`  
+- Registry hives: `SAM`, `SYSTEM`, `SECURITY`, `SOFTWARE`, `NTUSER.DAT`  
+
+If not elevated, the script writes `admin_warning.txt` instead.
+
+### Chain-of-Custody
+- `manifest.txt` — version, host, UTC time, elevated status  
+- `collection_transcript.txt` — full PowerShell transcript  
+- `hashes.txt` — SHA256 of every file created  
 
 ---
 
-## ✦ The Role of `BUNNY.TAG`
+## What’s With `BUNNY.TAG`?
 
-The file **`BUNNY.TAG`** sits in the root of the Bunny’s storage partition.  
-It’s a zero-byte marker that allows the script to reliably detect the Bunny drive letter across different hosts.
+Windows assigns drive letters dynamically. On one host your Bunny might be `D:`, on another `E:` or `F:`. To avoid hardcoding, the collector looks for a tiny marker file named `BUNNY.TAG` in the root of the Bunny storage.
 
-- Path: `D:\BUNNY.TAG` (if Bunny mounts as D:)  
-- Created with:  
-  ```powershell
-  New-Item -ItemType File -Path D:\BUNNY.TAG -Force
-If the tag is missing, the script falls back to a default drive letter (D:).
+- If found → that drive root is treated as the Bunny  
+- If not found → it falls back to a default (usually `D:`)  
 
-✦ Safe Usage Workflow
-Prep
+How to create it:
 
-Place BUNNY.TAG at root.
+```powershell
+New-Item -ItemType File -Path D:\BUNNY.TAG -Force
+It can be zero bytes. Some folks like to put a short identifier inside (e.g., DFIR-BUNNY-01) for clarity. Just make sure it sits at root, not inside payloads.
 
-Put payload.txt + collector.ps1 in payloads/switch1/ (private).
+How to Set It Up
+1. Prep the Bunny
+Switch Bunny to arming mode (position nearest USB plug)
 
-Deploy
+Plug into your workstation so it mounts as storage
 
-Set switch to slot 1.
+Create BUNNY.TAG at the root
 
-Plug into an unlocked Windows host.
+Copy payload.txt and collector.ps1 into payloads\switch1
 
-Accept UAC when prompted for full collection.
+2. Verify Layout
+Root should have:
 
-Verify
+Copy code
+BUNNY.TAG
+payloads\
+Switch folder should have:
 
-Remount Bunny.
+Copy code
+payloads\switch1\payload.txt
+payloads\switch1\collector.ps1
+3. Run in the Field
+Flip switch to slot 1
 
-Inspect the new DFIR_* folder.
+Plug into an unlocked Windows target
 
-Review manifest.txt, collection_transcript.txt, and hashes.txt.
+Wait for Run box → PowerShell bootstrap launches
 
-Copy to secure analysis host.
+Click Yes on UAC
 
-✦ Legal & Operational Notes
-Authorization required — only run on systems where you have explicit permission.
+Wait 30–120s (longer if logs are large)
 
-Not a replacement for full imaging — this is a triage tool to prioritize deeper investigation.
+LED goes solid (finish state). Eject
 
-Chain-of-custody — preserve manifest, transcript, and hash files alongside evidence.
+4. Collect the Goods
+Mount the Bunny on your workstation
 
-Private repo for full payloads — keep HID automation and full collector code access-controlled.
+Look for a new folder like:
+
+makefile
+Copy code
+D:\DFIR_HOSTNAME_20250927_143512\
+Check manifest.txt and collection_transcript.txt
+
+Spot-check outputs (processes.txt, netstat_full.txt, hashes.txt)
+
+Copy folder to secure analysis storage and verify hashes
+
+Why This Matters
+With this setup, you’ve transformed the Bash Bunny from an attack platform into a forensic triage tool. It’s quick, self-contained, and generates an integrity-protected package you can analyze later. Perfect for:
+
+Grabbing volatile data from a suspicious host
+
+Collecting consistent snapshots across multiple machines
+
+Carrying a ready-to-go DFIR kit in your pocket
