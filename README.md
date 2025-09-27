@@ -138,3 +138,61 @@ Grabbing volatile data from a suspicious host
 Collecting consistent snapshots across multiple machines
 
 Carrying a ready-to-go DFIR kit in your pocket
+
+📅 Update – 2025-09-27
+
+Collector v1.5
+
+Persistence & Autoruns
+
+Detailed Scheduled Tasks (scheduled_tasks_detailed.txt)
+
+Autoruns registry keys, RunOnce keys, Startup folders, auto-start services (autoruns_registry_and_startup.txt)
+
+PowerShell & Process Activity
+
+ScriptBlock logging events (4104) (powershell_scriptblock_4104.txt)
+
+Process creation events (4688) (security_process_creation_4688.txt)
+
+PowerShell console history (PSReadLine) (powershell_console_history.txt)
+
+WMI Persistence
+
+Event filters, consumers, and bindings in root\subscription (wmi_persistence_artifacts.txt)
+
+User & File Artifacts
+
+Suspicious executables/scripts in AppData (recent, >20 KB) (suspicious_appdata_files.txt)
+
+USB device connection history via registry + PnP (usb_connection_history.txt)
+
+Network & Credentials
+
+Wi-Fi profiles and keys (if elevated) via netsh (wifi_profiles.txt)
+
+Integrity & Chain of Custody
+
+Transcript, manifest, and SHA256 hashes remain included for every run
+
+Payload v1.5
+
+Added LED status scheme for clear operator feedback:
+
+Yellow (fast blink) – launching & typing PowerShell
+
+Magenta (slow blink) – waiting for UAC approval (10s)
+
+Blue (slow blink) – active collection in progress (5 min default)
+
+Green (solid) – collection finished successfully
+
+Red (solid) – reserved for error state (future use)
+
+Adjusted timing windows:
+
+UAC wait set to 10 seconds
+
+Collection wait set to 5 minutes (300s)
+
+HID launch now uses Start-Process -Verb RunAs -Wait for reliable elevation and timing
